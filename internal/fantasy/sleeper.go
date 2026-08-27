@@ -122,3 +122,83 @@ func (c *SleeperClient) GetUsers(leagueID string) ([]SleeperUser, error) {
 
 	return users, nil
 }
+
+func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Matchup, error) {
+	
+	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
+
+	matchups, err := sleeperClient.GetMatchups("1180280607007068160", 1)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper matchups: %w", err)
+	}
+
+	rosters, err := sleeperClient.GetRosters("1180280607007068160")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper rosters: %w", err)
+	}
+
+	users, err := sleeperClient.GetUsers("1180280607007068160")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper users: %w", err)
+	}
+
+	userMap := make(map[string]SleeperUser)
+	for _, u := range users {
+		userMap[u.UserID] = u
+	}
+
+	rosterOwnerMap := make(map[int]string)
+	for _, r := range rosters {
+		rosterOwnerMap[r.RosterID] = r.OwnerID
+	}
+
+	matchupsByID := make(map[int][]SleeperMatchup)
+	for _, m := range matchups {
+		if m.MatchupID == 0 {
+			continue
+		}
+		matchupsByID[m.MatchupID] append(matchupsByID[m.MatchupID], m)
+	}
+
+	var normalized []Matchup
+
+	for _, teamPair := matchupsByID {
+		if len(teamPair) < 2 {
+			continue
+		}
+
+		rawTeamA := teamPair[0]
+		rawTeamB := teamPair[1]
+
+		ownerIDA := rosterOwnerMap[rawTeamA.RosterID]
+		userA := userMap[ownerIDA]
+		teamA := Team{
+			ID:		ownerIDA,
+			Name:		userA.GetTeamName(),
+			OwnerName:	userA.DisplayName,
+			TotalScore:	rawTeamA.Points,
+		}
+
+		ownerIDB := rosterOwnerMap[rawTeamB.RosterID]
+		userB := userMap[ownerIDB]
+		teamB := Team{
+			ID:		ownerIDB,
+			Name:		userB.GetTeamName(),
+			OwnerName:	userB.DisplayName,
+			TotalScore:	rawTeamB.Points,
+		}
+
+		matchup := Matchup{
+			LeagueName:	leagueID, //change later to league name once fetch in place
+			Week:		week,
+			UserTeam:	teamA.Name,
+			UserScore:	teamA.TotalScore,
+			OpponentTeam:	teamB.Name,
+			OpponentScore:	teamB.TotalScore,
+		}
+
+		normalized = append(normalized, matchup)
+	}
+
+	return normalized, nil
+}

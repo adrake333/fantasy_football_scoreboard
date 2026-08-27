@@ -43,9 +43,10 @@ type Team struct {
 }
 
 type Matchup struct {
-	Leaguename	string
-	UserTeam	string
-	OpponentTeam	string
-	UserScore	float64
-	OpponentScore	float64
+	LeagueName	string		`json:"league_name"`
+	Week		int		`json:"week"`
+	UserTeam	string		`json:"user_team"`
+	OpponentTeam	string		`json:"opponent_team"`
+	UserScore	float64		`json:"user_score"`
+	OpponentScore	float64		`json:"opponent_score"`
 }
