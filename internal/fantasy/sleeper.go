@@ -123,25 +123,7 @@ func (c *SleeperClient) GetUsers(leagueID string) ([]SleeperUser, error) {
 	return users, nil
 }
 
-func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Matchup, error) {
-	
-	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
-
-	matchups, err := sleeperClient.GetMatchups("1180280607007068160", 1)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper matchups: %w", err)
-	}
-
-	rosters, err := sleeperClient.GetRosters("1180280607007068160")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper rosters: %w", err)
-	}
-
-	users, err := sleeperClient.GetUsers("1180280607007068160")
-	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper users: %w", err)
-	}
-
+func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []SleeperUser, leagueID string, week int) []Matchup {
 	userMap := make(map[string]SleeperUser)
 	for _, u := range users {
 		userMap[u.UserID] = u
@@ -157,12 +139,12 @@ func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Ma
 		if m.MatchupID == 0 {
 			continue
 		}
-		matchupsByID[m.MatchupID] append(matchupsByID[m.MatchupID], m)
+		matchupsByID[m.MatchupID] = append(matchupsByID[m.MatchupID], m)
 	}
 
 	var normalized []Matchup
 
-	for _, teamPair := matchupsByID {
+	for _, teamPair := range matchupsByID {
 		if len(teamPair) < 2 {
 			continue
 		}
@@ -200,5 +182,28 @@ func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Ma
 		normalized = append(normalized, matchup)
 	}
 
-	return normalized, nil
+	return normalized
+}
+
+
+func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Matchup, error) {
+	
+	sleeperClient := NewSleeperClient(10 * time.Second)
+
+	matchups, err := sleeperClient.GetMatchups("1180280607007068160", 1)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper matchups: %w", err)
+	}
+
+	rosters, err := sleeperClient.GetRosters("1180280607007068160")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper rosters: %w", err)
+	}
+
+	users, err := sleeperClient.GetUsers("1180280607007068160")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get sleeper users: %w", err)
+	}
+
+	return normalizeData(matchups, rosters, users, leagueID, week), nil
 }
