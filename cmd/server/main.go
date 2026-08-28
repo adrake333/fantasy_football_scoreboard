@@ -4,39 +4,59 @@ package main
 
 
 import (
-//	"flag"
-	"fmt"
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
 	"time"
 
+	"github.com/adrake333/fantasy_football_scoreboard/internal/api"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 )
 
 
 
 
+type LeagueConfig struct {
+	ID		string	`json:"id"`
+	Platform	string	`json:"platform"`
+	Alias		string	`json:"alias"`
+}
+
+type Config struct {
+	ServerPort	string		`json:"server_port"`
+	Leagues		[]LeagueConfig	`json:"leagues"`
+}
+
 func main() {
-//	configPath := flag.String("config", "config.json", "path to configuration file")
-//	flag.Parse()
+
+	configData, err := os.ReadFile("config.dev.json") //CHANGE TO CONFIG.JSON WHEN LIVE
+	if err != nil {
+		log.Fatalf("Failed to read config file: %v", err)
+	}
+
+	var cfg Config
+	if err := json.Unmarshal(configData, &cfg); err != nil {
+		log.Fatalf("Failed to parse config JSON: %v", err)
+	}
+
+	var sleeperLeagueIDs []string
+	for _, league := range cfg.Leagues {
+		if league.Platform == "sleeper" {
+			sleeperLeagueIDs = append(sleeperLeagueIDs, league.ID)
+		}
+	}
 
 	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
 
-	matchups, err := sleeperClient.GetMatchups("1180280607007068160", 1)
-	if err != nil {
-		fmt.Println("unable to get sleeper matchups: %s", err)
-		return
+	server := &api.Server{
+		SleeperClient:	sleeperClient,
+		LeagueIDs:	sleeperLeagueIDs,
 	}
 
-	rosters, err := sleeperClient.GetRosters("1180280607007068160")
-	if err != nil {
-		fmt.Println("unable to get sleeper rosters: %s", err)
-		return
-	}
+	http.HandleFunc("/api/matchups", server.HandleGetMatchups)
+	http.HandleFunc("/", server.HandleDashboard)
 
-	users, err := sleeperClient.GetUsers("1180280607007068160")
-	if err != nil {
-		fmt.Println("unable to get sleeper users: %s", err)
-		return
-	}
-
-	fmt.Printf("%+v\n%+v\n%+v\n", matchups, rosters, users)
+	log.Printf("Server listening on %s...", cfg.ServerPort)
+	log.Fatal(http.ListenAndServe(cfg.ServerPort, nil))
 }

@@ -187,23 +187,48 @@ func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []S
 
 
 func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Matchup, error) {
-	
-	sleeperClient := NewSleeperClient(10 * time.Second)
 
-	matchups, err := sleeperClient.GetMatchups("1180280607007068160", 1)
+	matchups, err := c.GetMatchups(leagueID, week)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper matchups: %w", err)
+		return nil, err
 	}
 
-	rosters, err := sleeperClient.GetRosters("1180280607007068160")
+	rosters, err := c.GetRosters(leagueID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper rosters: %w", err)
+		return nil, err
 	}
 
-	users, err := sleeperClient.GetUsers("1180280607007068160")
+	users, err := c.GetUsers(leagueID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get sleeper users: %w", err)
+		return nil, err
 	}
 
 	return normalizeData(matchups, rosters, users, leagueID, week), nil
+}
+
+type NFLState struct {
+	Week		int	`json:"week"`
+	Season		string	`json:"season"`
+	SeasonType	string	`json:"season_type"`
+}
+
+func (c *SleeperClient) GetCurrentNFLWeek() (int, error) {
+	url := fmt.Sprintf("%s/state/nfl", c.baseURL)
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return 1, err
+	}
+	defer resp.Body.Close()
+
+	var state NFLState
+	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+		return 1, err
+	}
+
+	if state.Week < 1 {
+		return 1, nil
+	}
+
+	return state.Week, nil
 }
