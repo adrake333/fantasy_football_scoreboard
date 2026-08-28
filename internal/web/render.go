@@ -14,9 +14,11 @@ import (
 
 
 type PageData struct {
-	Week		int
+	Week			int
 	AvailableWeeks	[]int
-	Matchups	[]fantasy.Matchup
+	SelectedLeague	string
+	Leagues			[]fantasy.LeagueConfig
+	Matchups		[]fantasy.Matchup
 }
 
 func RenderIndex(w io.Writer, data PageData) error {

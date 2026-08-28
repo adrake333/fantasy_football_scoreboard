@@ -5,7 +5,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -18,19 +17,35 @@ import (
 
 type Server struct {
 	SleeperClient	*fantasy.SleeperClient
-	LeagueIDs	[]string
+	MyUserID		string
+	Leagues			[]fantasy.LeagueConfig
 }
 
-func (s *Server) getMatchupsForWeek(week int) ([]fantasy.Matchup, error) {
-	var allMatchups []fantasy.Matchup
-	for _, leagueID := range s.LeagueIDs {
-        	matchups, err := s.SleeperClient.FetchNormalizedMatchups(leagueID, week)
-        	if err != nil {
-            		return nil, err
-        	}
-        	allMatchups = append(allMatchups, matchups...)
-    	}
-    	return allMatchups, nil
+func (s *Server) getMatchupsForView(week int, leagueParam string) ([]fantasy.Matchup, error) {
+	if leagueParam != "my_matchups" && leagueParam != "" {
+		return s.SleeperClient.FetchNormalizedMatchups(leagueParam, week)
+	}
+
+	var myMatchups []fantasy.Matchup
+	for _, league := range s.Leagues {
+		matchups, err := s.SleeperClient.FetchNormalizedMatchups(league.ID, week)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, m := range matchups {
+			if m.UserOwnerID == s.MyUserID {
+				myMatchups = append(myMatchups, m)
+			} else if m.OpponentOwnerID == s.MyUserID {
+				swapped := m
+				swapped.UserOwnerID, swapped.OpponentOwnerID = m.OpponentOwnerID, m.UserOwnerID
+				swapped.UserTeam, swapped.OpponentTeam = m.OpponentTeam, m.UserTeam
+				swapped.UserScore, swapped.OpponentScore = m.OpponentScore, m.UserScore
+				myMatchups = append(myMatchups, swapped)
+			}
+		}
+	}
+	return myMatchups, nil
 }
 
 func (s *Server) getRequestedWeek(r *http.Request) int {
@@ -49,9 +64,19 @@ func (s *Server) getRequestedWeek(r *http.Request) int {
 	return currentWeek
 }
 
+func (s *Server) getRequestedLeague(r *http.Request) string {
+	league := r.URL.Query().Get("league")
+	if league == "" {
+		return "my_matchups"
+	}
+	return league
+}
+
 func (s *Server) HandleGetMatchups(w http.ResponseWriter, r *http.Request) {
 	week := s.getRequestedWeek(r)
-	matchups, err := s.getMatchupsForWeek(week)
+	leagueView := s.getRequestedLeague(r)
+
+	matchups, err := s.getMatchupsForView(week, leagueView)
 	if err != nil {
 		http.Error(w, "Failed to fetch matchups", http.StatusInternalServerError)
 		return
@@ -68,7 +93,9 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	week := s.getRequestedWeek(r)
-	matchups, err := s.getMatchupsForWeek(week)
+	leagueView := s.getRequestedLeague(r)
+	
+	matchups, err := s.getMatchupsForView(week, leagueView)
 	if err != nil {
 		http.Error(w, "Failed to fetch matchups", http.StatusInternalServerError)
 		return
@@ -80,14 +107,15 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pageData := web.PageData{
-		Week:		week,
+		Week:			week,
 		AvailableWeeks: availableWeeks,
-		Matchups:	matchups,
+		SelectedLeague: leagueView,
+		Leagues:		s.Leagues,
+		Matchups:		matchups,
 	}
 
 	err = web.RenderIndex(w, pageData)
 	if err != nil {
-		log.Printf("ERROR rendering template: %v", err)
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

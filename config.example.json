@@ -1,5 +1,6 @@
 {
         "server_port": ":PORT",
+        "sleeper_user_id": "USERIDHERE",
         "leageues": [
                 {"id": "LEAGUE_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE_NAME"},
                 {"id": "LEAGUE2_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE2_NAME"}

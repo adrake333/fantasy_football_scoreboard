@@ -106,12 +106,22 @@
 
     <div class="controls">
         <form method="GET" action="/" id="weekForm">
-            <label for="weekSelect">Select Week:</label>
+            <label for="weekSelect">Select View:</label>
             <select id="weekSelect" name="week" onchange="this.form.submit()">
                 {{ $currentWeek := .Week }}
                 {{ range .AvailableWeeks }}
                     <option value="{{ . }}" {{ if eq . $currentWeek }}selected{{ end }}>
                         Week {{ . }}
+                    </option>
+                {{ end }}
+            </select>
+            <select name="league" onchange="this.form.submit()">
+                <option value="my_matchups" {{ if eq .SelectedLeague "my_matchups" }}selected{{ end }}>
+                    My Matchups (All Leagues)
+                </option>
+                {{ range .Leagues }}
+                    <option value="{{ .ID }}" {{ if eq .ID $.SelectedLeague }}selected{{ end }}>
+                        {{ .Alias }}
                     </option>
                 {{ end }}
             </select>

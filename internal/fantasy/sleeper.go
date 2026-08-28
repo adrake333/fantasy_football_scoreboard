@@ -172,11 +172,13 @@ func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []S
 
 		matchup := Matchup{
 			LeagueName:	leagueID, //change later to league name once fetch in place
-			Week:		week,
-			UserTeam:	teamA.Name,
-			UserScore:	teamA.TotalScore,
-			OpponentTeam:	teamB.Name,
-			OpponentScore:	teamB.TotalScore,
+			Week:				week,
+			UserOwnerID:		ownerIDA,
+			UserTeam:			teamA.Name,
+			UserScore:			teamA.TotalScore,
+			OpponentOwnerID:	ownerIDB,
+			OpponentTeam:		teamB.Name,
+			OpponentScore:		teamB.TotalScore,
 		}
 
 		normalized = append(normalized, matchup)

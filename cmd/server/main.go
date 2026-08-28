@@ -17,15 +17,10 @@ import (
 
 
 
-type LeagueConfig struct {
-	ID		string	`json:"id"`
-	Platform	string	`json:"platform"`
-	Alias		string	`json:"alias"`
-}
-
 type Config struct {
-	ServerPort	string		`json:"server_port"`
-	Leagues		[]LeagueConfig	`json:"leagues"`
+	ServerPort		string					`json:"server_port"`
+	SleeperUserID	string					`json:"sleeper_user_id"`
+	Leagues			[]fantasy.LeagueConfig	`json:"leagues"`
 }
 
 func main() {
@@ -51,7 +46,8 @@ func main() {
 
 	server := &api.Server{
 		SleeperClient:	sleeperClient,
-		LeagueIDs:	sleeperLeagueIDs,
+		MyUserID:		cfg.SleeperUserID,
+		Leagues:		cfg.Leagues,
 	}
 
 	http.HandleFunc("/api/matchups", server.HandleGetMatchups)
