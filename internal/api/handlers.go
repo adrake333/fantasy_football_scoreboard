@@ -5,10 +5,14 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/adrake333/fantasy_football_scoreboard/internal/config"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
+	"github.com/adrake333/fantasy_football_scoreboard/internal/simulator"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/web"
 )
 
@@ -17,26 +21,63 @@ import (
 
 type Server struct {
 	SleeperClient	*fantasy.SleeperClient
+	ESPNClient		*fantasy.ESPNClient
+	Simulator		*simulator.Simulator
 	MyUserID		string
-	Leagues			[]fantasy.LeagueConfig
+	ESPNSWID		string
+	Leagues			[]config.LeagueConfig
+}
+
+func matchesUserID(ownerID, targetID string) bool {
+	if ownerID == "" {
+		return false
+	}
+
+	cleanOwner := strings.ToUpper(strings.Trim(ownerID, "{}"))
+	cleanTargetID := strings.ToUpper(strings.Trim(targetID, "{}"))
+	return cleanTargetID != "" && cleanOwner == cleanTargetID
 }
 
 func (s *Server) getMatchupsForView(week int, leagueParam string) ([]fantasy.Matchup, error) {
 	if leagueParam != "my_matchups" && leagueParam != "" {
-		return s.SleeperClient.FetchNormalizedMatchups(leagueParam, week)
+		for _, l := range s.Leagues {
+			if l.ID == leagueParam {
+				if l.Platform == "espn" {
+					return s.ESPNClient.FetchNormalizedMatchups(l.ID, l.Season, week)
+				}
+				return s.SleeperClient.FetchNormalizedMatchups(l.ID, week)
+			}
+		}
 	}
 
 	var myMatchups []fantasy.Matchup
 	for _, league := range s.Leagues {
-		matchups, err := s.SleeperClient.FetchNormalizedMatchups(league.ID, week)
+		var matchups []fantasy.Matchup
+		var err error
+		
+		if league.Platform == "espn" {
+			matchups, err = s.ESPNClient.FetchNormalizedMatchups(league.ID, league.Season, week)
+		} else {
+			matchups, err = s.SleeperClient.FetchNormalizedMatchups(league.ID, week)
+		}
+
 		if err != nil {
 			return nil, err
 		}
 
+		targetID := s.MyUserID
+		if league.Platform == "espn" {
+			targetID = s.ESPNSWID
+		}
+
 		for _, m := range matchups {
-			if m.UserOwnerID == s.MyUserID {
+
+			isUserTeam := matchesUserID(m.UserOwnerID, targetID)
+			isOpponent := matchesUserID(m.OpponentOwnerID, targetID)
+			
+			if isUserTeam {
 				myMatchups = append(myMatchups, m)
-			} else if m.OpponentOwnerID == s.MyUserID {
+			} else if isOpponent {
 				swapped := m
 				swapped.UserOwnerID, swapped.OpponentOwnerID = m.OpponentOwnerID, m.UserOwnerID
 				swapped.UserTeam, swapped.OpponentTeam = m.OpponentTeam, m.UserTeam
@@ -118,5 +159,44 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (s *Server) HandleStream(w http.ResponseWriter, r *http.Request) {
+	if s.Simulator == nil {
+		http.Error(w, "Simulation is not active", http.StatusServiceUnavailable)
+		return
+	}
+	
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	msgChan := s.Simulator.Subscribe()
+	defer s.Simulator.Unsubscribe(msgChan)
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case matchups, ok := <-msgChan:
+			if !ok {
+				return
+			}
+
+			data, err := json.Marshal(matchups)
+			if err != nil {
+				continue
+			}
+
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		}
 	}
 }

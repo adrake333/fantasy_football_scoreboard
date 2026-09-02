@@ -22,12 +22,6 @@ type League struct {
 	Season		string		`json:"season"`
 }
 
-type LeagueConfig struct {
-	ID			string	`json:"id"`
-	Platform	string	`json:"platform"`
-	Alias		string	`json:"alias"`
-}
-
 type PlayerScore struct {
 	PlayerID	string	`json:"player_id"`
 	Name		string	`json:"name"`

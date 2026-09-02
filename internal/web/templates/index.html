@@ -31,38 +31,38 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
             border: 1px solid #334155;
         }
-	.controls {
-	    display: flex;
-	    justify-content: center;
-	    margin-bottom: 2rem;
-	}
-	.controls form {
-	    background-color: #1e293b;
-	    padding: 0.75rem 1.5rem;
-	    border-radius: 8px;
-	    border: 1px solid #334155;
-	    display: flex;
-	    align-items: center;
-	    gap: 0.75rem;
-	}
-	.controls label {
-	    font-weight: 600;
-	    color: #94a3b8;
-	}
-	.controls select {
-	    background-color: #0f172a;
-	    color: #38bdf8;
-	    border: 1px solid #334155;
-	    padding: 0.5rem 1rem;
-	    border-radius: 6px;
-	    font-size: 1rem;
-	    font-weight: 600;
-	    cursor: pointer;
-	    outline: none;
-	}
-	.controls select:focus {
-	    border-color: #38bdf8;
-	}
+    	.controls {
+    	    display: flex;
+    	    justify-content: center;
+    	    margin-bottom: 2rem;
+    	}
+    	.controls form {
+    	    background-color: #1e293b;
+    	    padding: 0.75rem 1.5rem;
+    	    border-radius: 8px;
+    	    border: 1px solid #334155;
+    	    display: flex;
+    	    align-items: center;
+    	    gap: 0.75rem;
+    	}
+    	.controls label {
+    	    font-weight: 600;
+    	    color: #94a3b8;
+	    }
+	    .controls select {
+	        background-color: #0f172a;
+	        color: #38bdf8;
+	        border: 1px solid #334155;
+	        padding: 0.5rem 1rem;
+	        border-radius: 6px;
+	        font-size: 1rem;
+	        font-weight: 600;
+	        cursor: pointer;
+	        outline: none;
+	    }
+	    .controls select:focus {
+	        border-color: #38bdf8;
+	    }
         .league-title {
             font-size: 0.875rem;
             color: #94a3b8;
@@ -78,12 +78,17 @@
             align-items: center;
             margin-bottom: 0.75rem;
             font-size: 1.1rem;
-	}
+	    }
         .score {
             font-weight: bold;
             font-family: monospace;
             font-size: 1.25rem;
             color: #f1f5f9;
+            transition: color 0.3s ease, transform 0.2s ease;
+        }
+        .score-updated {
+            color: #4ade80 !important;
+            transform: scale(1.15);
         }
         .user-team {
             color: #38bdf8;
@@ -128,26 +133,71 @@
         </form>
     </div>
 
-    <div class="grid">
-        {{ range .Matchups }}
-        <div class="card">
-            <div class="league-title">League: {{ .LeagueName }}</div>
-            
+    <div class="grid" id="matchups-grid">
+       {{ range .Matchups }}
+       <div class="card" data-league="{{ .LeagueName }}">
+          <div class="league-title">League: {{ .LeagueName }}</div>
+        
             <div class="team-row user-team">
                 <span>{{ .UserTeam }}</span>
-                <span class="score">{{ printf "%.2f" .UserScore }}</span>
+                <span class="score" data-league-id="{{ .LeagueID }}" data-owner-id="{{ .UserOwnerID }}">{{ printf "%.2f" .UserScore }}</span>
             </div>
 
             <div class="vs-divider">VS</div>
 
             <div class="team-row opponent-team">
                 <span>{{ .OpponentTeam }}</span>
-                <span class="score">{{ printf "%.2f" .OpponentScore }}</span>
+                <span class="score" data-league-id="{{ .LeagueID }}" data-owner-id="{{ .OpponentOwnerID }}">{{ printf "%.2f" .OpponentScore }}</span>
             </div>
-        </div>
-        {{ else }}
-        <p style="text-align: center; grid-column: 1 / -1;">No matchups found for this week.</p>
-        {{ end }}
+       </div>
+       {{ else }}
+       <p style="text-align: center; grid-column: 1 / -1;">No matchups found for this week.</p>
+       {{ end }}
     </div>
+
+    <script>
+        const eventSource = new EventSource('/api/stream');
+
+        eventSource.onmessage = function(event) {
+            try {
+                const updatedMatchups = JSON.parse(event.data);
+
+                updatedMatchups.forEach(matchup => {
+                    const userScoreEl = document.querySelector(
+                        `[data-league-id="${matchup.league_id}"][data-owner-id="${matchup.user_owner_id}"]`
+                    );
+                    const oppScoreEl = document.querySelector(
+                        `[data-league-id="${matchup.league_id}"][data-owner-id="${matchup.opponent_owner_id}"]`
+                    );
+
+                    if (userScoreEl) {
+                        updateScore(userScoreEl, matchup.user_score);
+                    }
+                    if (oppScoreEl) {
+                        updateScore(oppScoreEl, matchup.opponent_score);
+                    }
+                });
+            } catch (err) {
+                console.error("Error processing live score event:", err);
+            }
+        };
+
+        function updateScore(element, newScore) {
+            const formattedScore = parseFloat(newScore).toFixed(2);
+        
+            if (element.textContent.trim() !== formattedScore) {
+                console.log('Score changed for', element, 'from ${element.textContent.trim()} to ${formattedScore}');
+                element.textContent = formattedScore;
+                element.classList.add('score-updated');
+                setTimeout(() => {
+                    element.classList.remove('score-updated');
+                }, 1000);
+            }
+        }
+
+        eventSource.onerror = function(err) {
+            console.warn("EventSource disconnected or reconnecting...", err);
+        };
+    </script>
 </body>
 </html>
