@@ -123,7 +123,35 @@ func (c *SleeperClient) GetUsers(leagueID string) ([]SleeperUser, error) {
 	return users, nil
 }
 
-func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []SleeperUser, leagueID string, week int) []Matchup {
+type SleeperLeague struct {
+	LeagueID	string	`json:"league_id"`
+	Name		string	`json:"name"`
+	Season		string	`json:"season"`
+}
+
+func (c *SleeperClient) GetLeague(leagueID string) (*SleeperLeague, error) {
+	url := fmt.Sprintf("%s/league/%s", c.baseURL, leagueID)
+
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("sleeper API error: status %d", resp.StatusCode)
+	}
+
+	var league SleeperLeague
+
+	if err := json.NewDecoder(resp.Body).Decode(&league); err != nil {
+		return nil, fmt.Errorf("failed to decode sleeper league: %w", err)
+	}
+
+	return &league, nil
+}
+
+func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []SleeperUser, league *SleeperLeague, leagueID string, week int) []Matchup {
 	userMap := make(map[string]SleeperUser)
 	for _, u := range users {
 		userMap[u.UserID] = u
@@ -172,7 +200,7 @@ func normalizeData(matchups []SleeperMatchup, rosters []SleeperRoster, users []S
 
 		matchup := Matchup{
 			LeagueID:			leagueID,
-			LeagueName:			leagueID,
+			LeagueName:			league.Name,
 			Week:				week,
 			UserOwnerID:		ownerIDA,
 			UserTeam:			teamA.Name,
@@ -206,7 +234,12 @@ func (c *SleeperClient) FetchNormalizedMatchups(leagueID string, week int) ([]Ma
 		return nil, err
 	}
 
-	return normalizeData(matchups, rosters, users, leagueID, week), nil
+	league, err := c.GetLeague(leagueID)
+	if err != nil {
+		return nil, err
+	}
+
+	return normalizeData(matchups, rosters, users, league, leagueID, week), nil
 }
 
 type NFLState struct {
