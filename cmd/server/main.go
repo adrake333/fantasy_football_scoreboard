@@ -36,14 +36,21 @@ func main() {
 		log.Println("Seeding and starting score simulator in background...")
 		var initialMatchups []fantasy.Matchup
 		for _, league := range cfg.Leagues {
+			var matchups []fantasy.Matchup
+			var err error
+
 			if league.Platform == "sleeper" {
-				matchups, err := sleeperClient.FetchNormalizedMatchups(league.ID, 1)
-				if err != nil {
-					log.Printf("Warning: could not seed simulator for league %s: %v", league.ID, err)
-					continue
-				}
-				initialMatchups = append(initialMatchups, matchups...)
+				matchups, err = sleeperClient.FetchNormalizedMatchups(league.ID, 1)
+			} else if league.Platform == "espn" {
+				matchups, err = espnClient.FetchNormalizedMatchups(league.ID, league.Season, 1)
 			}
+
+			if err != nil {
+				log.Printf("Warning: could not seed simulator for %s league %s: %v", league.Platform, league.ID, err)
+				continue
+			}
+			
+			initialMatchups = append(initialMatchups, matchups...)
 		}
 
 		sim = simulator.NewSimulator(initialMatchups)
