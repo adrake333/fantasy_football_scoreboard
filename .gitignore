@@ -1,3 +1,6 @@
 .env
 config.json
 config.dev.json
+*.db
+*.db-wal
+*.db-shm

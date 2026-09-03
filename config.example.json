@@ -1,8 +1,10 @@
 {
         "server_port": ":PORT",
         "sleeper_user_id": "USERIDHERE",
+        "espn_s2": "ESPNS2GOESHERE",
+        "espn_swid": "{ESPNSWIDGOESHERE}",
         "leageues": [
-                {"id": "LEAGUE_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE_NAME"},
-                {"id": "LEAGUE2_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE2_NAME"}
+                {"id": "LEAGUE_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE_NAME", "season": "YEAR"},
+                {"id": "LEAGUE2_ID_HERE", "platform": "SLEEPER_ESPN_YAHOO_ETC", "alias": "LEAGUE2_NAME", "season": "YEAR"}
         ]
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/adrake333/fantasy_football_scoreboard/internal/api"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/config"
+	"github.com/adrake333/fantasy_football_scoreboard/internal/db"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/simulator"
 )
@@ -20,13 +21,21 @@ import (
 
 func main() {
 	simulateFlag := flag.Bool("simulate", false, "Enable live simulation mode for streaming scores")
-	configPath := flag.String("config", "config.dev.json", "Path to config file")
+	configPath := flag.String("config", "config.json", "Path to config file")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
+
+	dbConn, err := db.Init("scoreboard.db")
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer dbConn.Close()
+
+	dbQueries := db.New(dbConn)
 
 	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
 	espnClient := fantasy.NewESPNClient(cfg.ESPNS2, cfg.ESPNSWID, 10 * time.Second)
@@ -49,7 +58,7 @@ func main() {
 				log.Printf("Warning: could not seed simulator for %s league %s: %v", league.Platform, league.ID, err)
 				continue
 			}
-			
+
 			initialMatchups = append(initialMatchups, matchups...)
 		}
 
