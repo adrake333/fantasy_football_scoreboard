@@ -4,13 +4,15 @@ package api
 
 
 import (
+	"log"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/adrake333/fantasy_football_scoreboard/internal/config"
+	"github.com/adrake333/fantasy_football_scoreboard/internal/db"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/simulator"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/web"
@@ -20,12 +22,10 @@ import (
 
 
 type Server struct {
+	DB				db.Querier
 	SleeperClient	*fantasy.SleeperClient
 	ESPNClient		*fantasy.ESPNClient
 	Simulator		*simulator.Simulator
-	MyUserID		string
-	ESPNSWID		string
-	Leagues			[]config.LeagueConfig
 }
 
 func matchesUserID(ownerID, targetID string) bool {
@@ -38,36 +38,36 @@ func matchesUserID(ownerID, targetID string) bool {
 	return cleanTargetID != "" && cleanOwner == cleanTargetID
 }
 
-func (s *Server) getMatchupsForView(week int, leagueParam string) ([]fantasy.Matchup, error) {
+func (s *Server) getMatchupsForView(ctx context.Context, week int, leagueParam string, user *db.User, leagues []db.League) ([]fantasy.Matchup, error) {
 	if leagueParam != "my_matchups" && leagueParam != "" {
-		for _, l := range s.Leagues {
+		for _, l := range leagues {
 			if l.ID == leagueParam {
 				if l.Platform == "espn" {
-					return s.ESPNClient.FetchNormalizedMatchups(l.ID, l.Season, week)
+					return s.ESPNClient.FetchNormalizedMatchups(l.ExternalLeagueID, l.Season, week)
 				}
-				return s.SleeperClient.FetchNormalizedMatchups(l.ID, week)
+				return s.SleeperClient.FetchNormalizedMatchups(l.ExternalLeagueID, week)
 			}
 		}
 	}
 
 	var myMatchups []fantasy.Matchup
-	for _, league := range s.Leagues {
+	for _, league := range leagues {
 		var matchups []fantasy.Matchup
 		var err error
 		
 		if league.Platform == "espn" {
-			matchups, err = s.ESPNClient.FetchNormalizedMatchups(league.ID, league.Season, week)
+			matchups, err = s.ESPNClient.FetchNormalizedMatchups(league.ExternalLeagueID, league.Season, week)
 		} else {
-			matchups, err = s.SleeperClient.FetchNormalizedMatchups(league.ID, week)
+			matchups, err = s.SleeperClient.FetchNormalizedMatchups(league.ExternalLeagueID, week)
 		}
 
 		if err != nil {
 			return nil, err
 		}
 
-		targetID := s.MyUserID
+		targetID := user.SleeperUserID.String
 		if league.Platform == "espn" {
-			targetID = s.ESPNSWID
+			targetID = user.EspnSwid.String
 		}
 
 		for _, m := range matchups {
@@ -114,10 +114,24 @@ func (s *Server) getRequestedLeague(r *http.Request) string {
 }
 
 func (s *Server) HandleGetMatchups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	if err != nil {
+		http.Error(w, "Failed to load user profile", http.StatusInternalServerError)
+		return
+	}
+
+	leagues, err := s.DB.GetLeaguesByUser(ctx, user.ID)
+	if err != nil {
+		http.Error(w, "Failed to laod leagues from database", http.StatusInternalServerError)
+		return
+	}
+	
 	week := s.getRequestedWeek(r)
 	leagueView := s.getRequestedLeague(r)
 
-	matchups, err := s.getMatchupsForView(week, leagueView)
+	matchups, err := s.getMatchupsForView(ctx, week, leagueView, &user, leagues)
 	if err != nil {
 		http.Error(w, "Failed to fetch matchups", http.StatusInternalServerError)
 		return
@@ -133,10 +147,24 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	if err != nil {
+		http.Error(w, "Failed to load user profile", http.StatusInternalServerError)
+		return
+	}
+
+	leagues, err := s.DB.GetLeaguesByUser(ctx, user.ID)
+	if err != nil {
+		http.Error(w, "Failed to laod leagues from database", http.StatusInternalServerError)
+		return
+	}
+
 	week := s.getRequestedWeek(r)
 	leagueView := s.getRequestedLeague(r)
 	
-	matchups, err := s.getMatchupsForView(week, leagueView)
+	matchups, err := s.getMatchupsForView(ctx, week, leagueView, &user, leagues)
 	if err != nil {
 		http.Error(w, "Failed to fetch matchups", http.StatusInternalServerError)
 		return
@@ -151,12 +179,14 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 		Week:			week,
 		AvailableWeeks: availableWeeks,
 		SelectedLeague: leagueView,
-		Leagues:		s.Leagues,
+		Leagues:		leagues,
 		Matchups:		matchups,
 	}
 
 	err = web.RenderIndex(w, pageData)
 	if err != nil {
+//debug log
+		log.Printf("[TEMPLATE ERROR]: %v", err)
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

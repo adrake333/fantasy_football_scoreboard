@@ -11,7 +11,6 @@ import (
 	"log"
 
 	"github.com/adrake333/fantasy_football_scoreboard/internal/config"
-	"github.com/google/uuid"
 )
 
 
@@ -27,7 +26,7 @@ func SeedFromConfig(ctx context.Context, q Querier, cfg *config.Config) error {
 		return fmt.Errorf("failed to check existing user: %w", err)
 	}
 
-	lof.Println("Fresh database detected. Seeding users and leagues from config...")
+	log.Println("Fresh database detected. Seeding users and leagues from config...")
 
 	userID := "user_default"
 	err = q.CreateUser(ctx, CreateUserParams{
@@ -48,11 +47,11 @@ func SeedFromConfig(ctx context.Context, q Querier, cfg *config.Config) error {
 			UserID:				userID,
 			Platform:			l.Platform,
 			ExternalLeagueID:	l.ID,
-			Name:				l.Name,
+			Name:				l.Alias,
 			Season:				l.Season,
 		})
 		if err != nil {
-			log.Printf("Warning: failed to see league %s: %v", l.Name, err)
+			log.Printf("Warning: failed to see league %s: %v", l.Alias, err)
 		}
 	}
 

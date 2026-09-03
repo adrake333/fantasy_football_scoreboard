@@ -4,6 +4,7 @@ package main
 
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -37,6 +38,10 @@ func main() {
 
 	dbQueries := db.New(dbConn)
 
+	if err := db.SeedFromConfig(context.Background(), dbQueries, cfg); err != nil {
+		log.Printf("Seeding warning: %v", err)
+	}
+
 	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
 	espnClient := fantasy.NewESPNClient(cfg.ESPNS2, cfg.ESPNSWID, 10 * time.Second)
 
@@ -67,11 +72,9 @@ func main() {
 	}
 
 	server := &api.Server{
+		DB:				dbQueries,
 		SleeperClient:	sleeperClient,
 		ESPNClient:		espnClient,
-		MyUserID:		cfg.SleeperUserID,
-		ESPNSWID:		cfg.ESPNSWID,
-		Leagues:		cfg.Leagues,
 		Simulator:		sim,
 	}
 

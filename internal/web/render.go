@@ -7,7 +7,7 @@ import (
 	"html/template"
 	"io"
 
-	"github.com/adrake333/fantasy_football_scoreboard/internal/config"
+	"github.com/adrake333/fantasy_football_scoreboard/internal/db"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 )
 
@@ -18,7 +18,7 @@ type PageData struct {
 	Week			int
 	AvailableWeeks	[]int
 	SelectedLeague	string
-	Leagues			[]config.LeagueConfig
+	Leagues			[]db.League
 	Matchups		[]fantasy.Matchup
 }
 

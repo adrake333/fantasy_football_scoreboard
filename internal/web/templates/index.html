@@ -126,7 +126,7 @@
                 </option>
                 {{ range .Leagues }}
                     <option value="{{ .ID }}" {{ if eq .ID $.SelectedLeague }}selected{{ end }}>
-                        {{ .Alias }}
+                        {{ .Name }}
                     </option>
                 {{ end }}
             </select>
