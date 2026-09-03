@@ -49,6 +49,18 @@ type ESPNTeam struct {
     Owners       []string `json:"owners"`
 }
 
+type ESPNMatchup struct {
+    MatchupPeriodID int `json:"matchupPeriodId"`
+    Home struct {
+        TeamID     int     `json:"teamId"`
+        TotalPoints float64 `json:"totalPoints"`
+    } `json:"home"`
+    Away struct {
+        TeamID     int     `json:"teamId"`
+        TotalPoints float64 `json:"totalPoints"`
+    } `json:"away"`
+}
+
 func (t ESPNTeam) GetTeamName() string {
 	if t.Name != "" {
 		return t.Name
@@ -69,16 +81,35 @@ func (t ESPNTeam) GetOwnerID() string {
 	return ""
 }
 
-type ESPNMatchup struct {
-    MatchupPeriodID int `json:"matchupPeriodId"`
-    Home struct {
-        TeamID     int     `json:"teamId"`
-        TotalPoints float64 `json:"totalPoints"`
-    } `json:"home"`
-    Away struct {
-        TeamID     int     `json:"teamId"`
-        TotalPoints float64 `json:"totalPoints"`
-    } `json:"away"`
+func (c *ESPNClient) GetLeague(leagueID, season string) (*ESPNResponse, error) {
+	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mSettings", season, leagueID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.espnS2 != "" && c.swid != "" {
+		cookieHeader := fmt.Sprintf("espn_s2=%s; SWID=%s", c.espnS2, c.swid)
+		req.Header.Set("Cookie", cookieHeader)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESPN API return status: %d", resp.StatusCode)
+	}
+
+	var data ESPNResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to decode ESPN league setting: %w", err)
+	}
+
+	return &data, nil
 }
 
 func normalizeESPNData(data ESPNResponse, leagueID string, week int) []Matchup {

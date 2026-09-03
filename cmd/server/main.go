@@ -78,9 +78,13 @@ func main() {
 		Simulator:		sim,
 	}
 
-	http.HandleFunc("/api/matchups", server.HandleGetMatchups)
 	http.HandleFunc("/", server.HandleDashboard)
+
+	http.HandleFunc("/api/matchups", server.HandleGetMatchups)
 	http.HandleFunc("/api/stream", server.HandleStream)
+
+	http.HandleFunc("/leagues/add", server.HandleAddLeague)
+	http.HandleFunc("/leagues/delete", server.HandleDeleteLeague)
 
 	log.Printf("Server listening on %s...", cfg.ServerPort)
 	log.Fatal(http.ListenAndServe(cfg.ServerPort, nil))

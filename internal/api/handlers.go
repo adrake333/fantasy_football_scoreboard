@@ -4,7 +4,6 @@ package api
 
 
 import (
-	"log"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/simulator"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/web"
+	"github.com/google/uuid"
 )
 
 
@@ -185,8 +185,6 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	err = web.RenderIndex(w, pageData)
 	if err != nil {
-//debug log
-		log.Printf("[TEMPLATE ERROR]: %v", err)
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
@@ -229,4 +227,91 @@ func (s *Server) HandleStream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+func (s *Server) HandleAddLeague(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	platform := r.Form.Get("platform")
+	externalLeagueID := r.Form.Get("external_league_id")
+	season := r.Form.Get("season")
+
+	ctx := r.Context()
+
+	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	if err != nil {
+		http.Error(w, "Failed to get user profile", http.StatusInternalServerError)
+	}
+
+	leagueName := externalLeagueID
+
+	if platform == "sleeper" {
+		sleeperLeague, err := s.SleeperClient.GetLeague(externalLeagueID)
+		if err != nil {
+			http.Error(w, "Failed to fetch Sleeper league", http.StatusBadRequest)
+			return
+		}
+		if sleeperLeague.Name != "" {
+			leagueName = sleeperLeague.Name
+		}
+	}
+	
+	if platform == "espn" {
+		espnLeague, err := s.ESPNClient.GetLeague(externalLeagueID, season)
+		if err != nil {
+			http.Error(w, "Failed to fetch ESPN league", http.StatusBadRequest)
+			return
+		}
+		if espnLeague.Settings.Name != "" {
+			leagueName = espnLeague.Settings.Name
+		}
+	}
+
+	err = s.DB.CreateLeague(ctx, db.CreateLeagueParams{
+		ID:					uuid.New().String(),
+		UserID:				user.ID,
+		Platform:			platform,
+		ExternalLeagueID:	externalLeagueID,
+		Name:				leagueName,
+		Season:				season,
+	})
+	if err != nil {
+		http.Error(w, "Failure adding league to database", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) HandleDeleteLeague(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	leagueID := r.Form.Get("league_id")
+
+	err = s.DB.DeleteLeague(ctx, leagueID)
+	if err != nil {
+		http.Error(w, "Failure removing league from database", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
