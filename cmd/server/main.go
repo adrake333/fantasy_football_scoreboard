@@ -4,7 +4,6 @@ package main
 
 
 import (
-	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -38,9 +37,9 @@ func main() {
 
 	dbQueries := db.New(dbConn)
 
-	if err := db.SeedFromConfig(context.Background(), dbQueries, cfg); err != nil {
-		log.Printf("Seeding warning: %v", err)
-	}
+//	if err := db.SeedFromConfig(context.Background(), dbQueries, cfg); err != nil {
+//		log.Printf("Seeding warning: %v", err)
+//	}
 
 	sleeperClient := fantasy.NewSleeperClient(10 * time.Second)
 	espnClient := fantasy.NewESPNClient(cfg.ESPNS2, cfg.ESPNSWID, 10 * time.Second)
@@ -78,14 +77,18 @@ func main() {
 		Simulator:		sim,
 	}
 
-	http.HandleFunc("/", server.HandleDashboard)
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/api/matchups", server.HandleGetMatchups)
-	http.HandleFunc("/api/stream", server.HandleStream)
+	mux.HandleFunc("/login", server.HandleLogin)
+    mux.HandleFunc("/register", server.HandleRegister)
 
-	http.HandleFunc("/leagues/add", server.HandleAddLeague)
-	http.HandleFunc("/leagues/delete", server.HandleDeleteLeague)
+	mux.HandleFunc("/", server.RequireAuth(server.HandleDashboard))
+    mux.HandleFunc("/logout", server.RequireAuth(server.HandleLogout))
+    mux.HandleFunc("/api/matchups", server.RequireAuth(server.HandleGetMatchups))
+    mux.HandleFunc("/api/stream", server.RequireAuth(server.HandleStream))
+    mux.HandleFunc("/leagues/add", server.RequireAuth(server.HandleAddLeague))
+    mux.HandleFunc("/leagues/delete", server.RequireAuth(server.HandleDeleteLeague))
 
 	log.Printf("Server listening on %s...", cfg.ServerPort)
-	log.Fatal(http.ListenAndServe(cfg.ServerPort, nil))
+	log.Fatal(http.ListenAndServe(cfg.ServerPort, mux))
 }

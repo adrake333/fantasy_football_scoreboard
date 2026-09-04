@@ -29,3 +29,19 @@ func RenderIndex(w io.Writer, data PageData) error {
 	}
 	return tmpl.Execute(w, data)
 }
+
+func RenderRegister(w io.Writer) error {
+	tmpl, err := template.ParseFiles("internal/web/templates/register.html")
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, nil)
+}
+
+func RenderLogin(w io.Writer) error {
+	tmpl, err := template.ParseFiles("internal/web/templates/login.html")
+	if err != nil {
+		return err
+	}
+	return tmpl.Execute(w, nil)
+}

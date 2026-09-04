@@ -208,11 +208,11 @@
         .btn-add:hover {
             background-color: #7dd3fc;
         }
+
     </style>
 </head>
 <body>
     <h1>🏈 Fantasy Football Scoreboard - Week {{ .Week }}</h1>
-
     <div class="controls">
         <form method="GET" action="/" id="weekForm">
             <label for="weekSelect">Select View:</label>
@@ -283,6 +283,12 @@
             <input type="text" name="external_league_id" placeholder="League ID" required style="flex: 1; min-width: 150px;">
            <input type="text" name="season" placeholder="Season" style="width: 70px;" required>
             <button type="submit" class="btn-add">+ Add League</button>
+        </form>
+    </div>
+
+    <div class="controls">
+        <form action="/logout" method="POST" style="display: inline;">
+            <button type="submit" class="logout-btn">Log Out</button>
         </form>
     </div>
 

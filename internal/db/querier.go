@@ -10,10 +10,15 @@ import (
 
 type Querier interface {
 	CreateLeague(ctx context.Context, arg CreateLeagueParams) error
+	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	DeleteLeague(ctx context.Context, id string) error
+	DeleteSession(ctx context.Context, token string) error
 	GetLeaguesByUser(ctx context.Context, userID string) ([]League, error)
+	GetSession(ctx context.Context, token string) (Session, error)
 	GetUser(ctx context.Context, id string) (User, error)
+	GetUserByID(ctx context.Context, id string) (User, error)
+	GetUserBySessionToken(ctx context.Context, token string) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 }
 

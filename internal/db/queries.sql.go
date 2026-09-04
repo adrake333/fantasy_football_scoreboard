@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createLeague = `-- name: CreateLeague :exec
@@ -36,14 +37,31 @@ func (q *Queries) CreateLeague(ctx context.Context, arg CreateLeagueParams) erro
 	return err
 }
 
+const createSession = `-- name: CreateSession :exec
+INSERT INTO sessions (token, user_id, expires_at)
+VALUES (?, ?, ?)
+`
+
+type CreateSessionParams struct {
+	Token     string    `json:"token"`
+	UserID    string    `json:"user_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.ExecContext(ctx, createSession, arg.Token, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
 const createUser = `-- name: CreateUser :exec
-INSERT INTO users (id, username, sleeper_user_id, espn_swid, espn_s2)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO users (id, username, password_hash, sleeper_user_id, espn_swid, espn_s2)
+VALUES (?, ?, ?, ?, ?, ?)
 `
 
 type CreateUserParams struct {
 	ID            string         `json:"id"`
 	Username      string         `json:"username"`
+	PasswordHash  string         `json:"password_hash"`
 	SleeperUserID sql.NullString `json:"sleeper_user_id"`
 	EspnSwid      sql.NullString `json:"espn_swid"`
 	EspnS2        sql.NullString `json:"espn_s2"`
@@ -53,6 +71,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	_, err := q.db.ExecContext(ctx, createUser,
 		arg.ID,
 		arg.Username,
+		arg.PasswordHash,
 		arg.SleeperUserID,
 		arg.EspnSwid,
 		arg.EspnS2,
@@ -70,8 +89,18 @@ func (q *Queries) DeleteLeague(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM sessions
+WHERE token = ?
+`
+
+func (q *Queries) DeleteSession(ctx context.Context, token string) error {
+	_, err := q.db.ExecContext(ctx, deleteSession, token)
+	return err
+}
+
 const getLeaguesByUser = `-- name: GetLeaguesByUser :many
-SELECT id, user_id, platform, external_league_id, name, season, craeted_at FROM leagues
+SELECT id, user_id, platform, external_league_id, name, season, created_at FROM leagues
 WHERE user_id = ?
 ORDER BY name ASC
 `
@@ -92,7 +121,7 @@ func (q *Queries) GetLeaguesByUser(ctx context.Context, userID string) ([]League
 			&i.ExternalLeagueID,
 			&i.Name,
 			&i.Season,
-			&i.CraetedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -107,8 +136,25 @@ func (q *Queries) GetLeaguesByUser(ctx context.Context, userID string) ([]League
 	return items, nil
 }
 
+const getSession = `-- name: GetSession :one
+SELECT token, user_id, expires_at, created_at FROM sessions
+WHERE token = ? LIMIT 1
+`
+
+func (q *Queries) GetSession(ctx context.Context, token string) (Session, error) {
+	row := q.db.QueryRowContext(ctx, getSession, token)
+	var i Session
+	err := row.Scan(
+		&i.Token,
+		&i.UserID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
-SELECT id, username, sleeper_user_id, espn_swid, espn_s2, craeted_at FROM users
+SELECT id, username, password_hash, sleeper_user_id, espn_swid, espn_s2, created_at FROM users
 WHERE id = ? LIMIT 1
 `
 
@@ -118,16 +164,59 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
+		&i.PasswordHash,
 		&i.SleeperUserID,
 		&i.EspnSwid,
 		&i.EspnS2,
-		&i.CraetedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, username, password_hash, sleeper_user_id, espn_swid, espn_s2, created_at FROM users
+WHERE id = ? LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.SleeperUserID,
+		&i.EspnSwid,
+		&i.EspnS2,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getUserBySessionToken = `-- name: GetUserBySessionToken :one
+SELECT users.id, users.username, users.password_hash, users.sleeper_user_id, users.espn_swid, users.espn_s2, users.created_at FROM users
+JOIN sessions ON users.id = sessions.user_id
+WHERE sessions.token = ? AND sessions.expires_at > CURRENT_TIMESTAMP
+LIMIT 1
+`
+
+func (q *Queries) GetUserBySessionToken(ctx context.Context, token string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserBySessionToken, token)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.SleeperUserID,
+		&i.EspnSwid,
+		&i.EspnS2,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, sleeper_user_id, espn_swid, espn_s2, craeted_at FROM users
+SELECT id, username, password_hash, sleeper_user_id, espn_swid, espn_s2, created_at FROM users
 WHERE username = ? LIMIT 1
 `
 
@@ -137,10 +226,11 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
+		&i.PasswordHash,
 		&i.SleeperUserID,
 		&i.EspnSwid,
 		&i.EspnS2,
-		&i.CraetedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }

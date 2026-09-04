@@ -82,7 +82,7 @@ func (t ESPNTeam) GetOwnerID() string {
 }
 
 func (c *ESPNClient) GetLeague(leagueID, season string) (*ESPNResponse, error) {
-	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mSettings", season, leagueID)
+	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mSettings", c.baseURL, season, leagueID)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

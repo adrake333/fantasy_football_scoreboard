@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/adrake333/fantasy_football_scoreboard/internal/auth"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/db"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/fantasy"
 	"github.com/adrake333/fantasy_football_scoreboard/internal/simulator"
@@ -113,10 +115,41 @@ func (s *Server) getRequestedLeague(r *http.Request) string {
 	return league
 }
 
+func (s *Server) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		session, err := s.DB.GetSession(r.Context(), cookie.Value)
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		if session.ExpiresAt.Before(time.Now()) {
+			_ = s.DB.DeleteSession(r.Context(), cookie.Value)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), auth.UserContextKey, session.UserID)
+		next(w, r.WithContext(ctx))
+	}
+}
+
 func (s *Server) HandleGetMatchups(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	userID, err := auth.GetUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := s.DB.GetUserByID(ctx, userID)
 	if err != nil {
 		http.Error(w, "Failed to load user profile", http.StatusInternalServerError)
 		return
@@ -124,7 +157,7 @@ func (s *Server) HandleGetMatchups(w http.ResponseWriter, r *http.Request) {
 
 	leagues, err := s.DB.GetLeaguesByUser(ctx, user.ID)
 	if err != nil {
-		http.Error(w, "Failed to laod leagues from database", http.StatusInternalServerError)
+		http.Error(w, "Failed to load leagues from database", http.StatusInternalServerError)
 		return
 	}
 	
@@ -149,7 +182,13 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	userID, err := auth.GetUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := s.DB.GetUserByID(ctx, userID)
 	if err != nil {
 		http.Error(w, "Failed to load user profile", http.StatusInternalServerError)
 		return
@@ -247,9 +286,16 @@ func (s *Server) HandleAddLeague(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	user, err := s.DB.GetUserByUsername(ctx, "default_user")
+	userID, err := auth.GetUserID(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	user, err := s.DB.GetUserByID(ctx, userID)
 	if err != nil {
 		http.Error(w, "Failed to get user profile", http.StatusInternalServerError)
+		return
 	}
 
 	leagueName := externalLeagueID

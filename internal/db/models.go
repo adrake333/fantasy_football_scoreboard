@@ -6,6 +6,7 @@ package db
 
 import (
 	"database/sql"
+	"time"
 )
 
 type League struct {
@@ -15,14 +16,22 @@ type League struct {
 	ExternalLeagueID string       `json:"external_league_id"`
 	Name             string       `json:"name"`
 	Season           string       `json:"season"`
-	CraetedAt        sql.NullTime `json:"craeted_at"`
+	CreatedAt        sql.NullTime `json:"created_at"`
+}
+
+type Session struct {
+	Token     string       `json:"token"`
+	UserID    string       `json:"user_id"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }
 
 type User struct {
 	ID            string         `json:"id"`
 	Username      string         `json:"username"`
+	PasswordHash  string         `json:"password_hash"`
 	SleeperUserID sql.NullString `json:"sleeper_user_id"`
 	EspnSwid      sql.NullString `json:"espn_swid"`
 	EspnS2        sql.NullString `json:"espn_s2"`
-	CraetedAt     sql.NullTime   `json:"craeted_at"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
 }

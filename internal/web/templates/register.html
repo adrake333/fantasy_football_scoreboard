@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Fantasy Tracker</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --border: #334155;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .auth-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .auth-card h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .auth-card p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background-color: #0b1120;
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--primary);
+            color: #0f172a;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .error-message {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            text-align: center;
+        }
+
+        .switch-auth {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .switch-auth a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .switch-auth a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <h1>Create Account</h1>
+        <p class="subtitle">Start tracking your fantasy leagues in real-time</p>
+
+        {{if .Error}}
+        <div class="error-message">
+            {{.Error}}
+        </div>
+        {{end}}
+
+        <form action="/register" method="POST">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password" />
+            </div>
+
+            <div class="form-group">
+                <label for="sleeper_user_id">Sleeper User ID <span style="font-size: 0.75rem; color: var(--text-muted);">(Optional)</span></label>
+                <input type="text" id="sleeper_user_id" name="sleeper_user_id" placeholder="e.g. 123456789012345" />
+            </div>
+
+            <div class="form-group">
+                <label for="espn_swid">ESPN SWID <span style="font-size: 0.75rem; color: var(--text-muted);">(Optional)</span></label>
+                <input type="text" id="espn_swid" name="espn_swid" placeholder="{12345678-ABCD-...}" />
+            </div>
+
+            <div class="form-group">
+                <label for="espn_s2">ESPN S2 Cookie <span style="font-size: 0.75rem; color: var(--text-muted);">(Optional)</span></label>
+                <input type="text" id="espn_s2" name="espn_s2" placeholder="AEB..." />
+            </div>
+
+            <button type="submit">Create Account</button>
+        </form>
+
+        <div class="switch-auth">
+            Already have an account? <a href="/login">Sign in</a>
+        </div>
+    </div>
+</body>
+</html>
