@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -230,40 +231,97 @@ func (s *Server) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleStream(w http.ResponseWriter, r *http.Request) {
-	if s.Simulator == nil {
-		http.Error(w, "Simulation is not active", http.StatusServiceUnavailable)
-		return
-	}
-	
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
+	userID, err := auth.GetUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := s.DB.GetUserByID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusInternalServerError)
+		return
+	}
+
+	leagues, err := s.DB.GetLeaguesByUser(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "Failed to load leagues", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 
-	msgChan := s.Simulator.Subscribe()
-	defer s.Simulator.Unsubscribe(msgChan)
+	fmt.Fprintf(w, ": connected \n\n")
+	flusher.Flush()
+
+	if s.Simulator != nil {
+		msgChan := s.Simulator.Subscribe()
+		defer s.Simulator.Unsubscribe(msgChan)
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case matchups, ok := <-msgChan:
+				if !ok {
+					return
+				}
+
+				data, err := json.Marshal(matchups)
+				if err == nil {
+					fmt.Fprintf(w, "data: %s\n\n", data)
+					flusher.Flush()
+				}
+			}
+		}
+	}
+
+	week := 1
+	if weekStr := r.URL.Query().Get("week"); weekStr != "" {
+		if wVal, err := strconv.Atoi(weekStr); err == nil {
+			week = wVal
+		}
+	}
+	leagueParam := r.URL.Query().Get("league")
+
+	sendLiveUpdate := func() {
+		matchups, err := s.getMatchupsForView(r.Context(), week, leagueParam, &user, leagues)
+		if err != nil {
+			log.Printf("Error fetching live matchups for user %d: %v", userID, err)
+			return
+		}
+
+		data, err := json.Marshal(matchups)
+		if err != nil {
+			log.Printf("Error marshaling matchups: %v", err)
+			return
+		}
+
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	sendLiveUpdate()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		case matchups, ok := <-msgChan:
-			if !ok {
-				return
-			}
+		case <-ticker.C:
+			sendLiveUpdate()
 
-			data, err := json.Marshal(matchups)
-			if err != nil {
-				continue
-			}
-
-			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
 		}
 	}
 }
