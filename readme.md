@@ -48,7 +48,9 @@ A real-time, multi-user fantasy football dashboard built in Go. It aggregates le
 4. **Open your browser:**
     Navigate to http://localhost:8080
 
-### 📖 Usage Guide
+---
+
+## 📖 Usage Guide
 
 1. **Register an account:**
     Go to /register and create a username and password.
@@ -60,6 +62,8 @@ A real-time, multi-user fantasy football dashboard built in Go. It aggregates le
 3. **Watch the scores roll in:**
     The Dashboard will automatically filter to your active team's matchups and push live updates every 15 seconds!
 
-### 📄 License
+---
+
+## 📄 License
 
     MIT License. Feel free to use and modify for your own fantasy leagues!
