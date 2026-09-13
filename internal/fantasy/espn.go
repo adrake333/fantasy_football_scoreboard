@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,16 +51,16 @@ type ESPNTeam struct {
     Owners       []string `json:"owners"`
 }
 
+type ESPNMatchupTeam struct {
+    TeamID                int                `json:"teamId"`
+    TotalPoints           float64            `json:"totalPoints"`
+    PointsByScoringPeriod map[string]float64 `json:"pointsByScoringPeriod"`
+}
+
 type ESPNMatchup struct {
-    MatchupPeriodID int `json:"matchupPeriodId"`
-    Home struct {
-        TeamID     int     `json:"teamId"`
-        TotalPoints float64 `json:"totalPoints"`
-    } `json:"home"`
-    Away struct {
-        TeamID     int     `json:"teamId"`
-        TotalPoints float64 `json:"totalPoints"`
-    } `json:"away"`
+    MatchupPeriodID int             `json:"matchupPeriodId"`
+    Home            ESPNMatchupTeam `json:"home"`
+    Away            ESPNMatchupTeam `json:"away"`
 }
 
 func (t ESPNTeam) GetTeamName() string {
@@ -81,6 +83,19 @@ func (t ESPNTeam) GetOwnerID() string {
 	return ""
 }
 
+func (t ESPNMatchupTeam) GetScore(week int) float64 {
+	if t.TotalPoints > 0 {
+        return t.TotalPoints
+    }
+
+	weekKey := strconv.Itoa(week)
+    if pts, ok := t.PointsByScoringPeriod[weekKey]; ok {
+        return pts
+    }
+
+    return 0.0
+}
+
 func (c *ESPNClient) GetLeague(leagueID, season string) (*ESPNResponse, error) {
 	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mSettings", c.baseURL, season, leagueID)
 
@@ -101,7 +116,7 @@ func (c *ESPNClient) GetLeague(leagueID, season string) (*ESPNResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESPN API return status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("ESPN API returned status: %d", resp.StatusCode)
 	}
 
 	var data ESPNResponse
@@ -112,7 +127,7 @@ func (c *ESPNClient) GetLeague(leagueID, season string) (*ESPNResponse, error) {
 	return &data, nil
 }
 
-func normalizeESPNData(data ESPNResponse, leagueID string, week int) []Matchup {
+func (c *ESPNClient) normalizeESPNData(data ESPNResponse, leagueID string, week int) []Matchup {
 	leagueName := data.Settings.Name
 	if leagueName == "" {
 		leagueName = leagueID
@@ -136,16 +151,41 @@ func normalizeESPNData(data ESPNResponse, leagueID string, week int) []Matchup {
 		homeTeam := teamMap[m.Home.TeamID]
 		awayTeam := teamMap[m.Away.TeamID]
 
+		isHomeUser := (c.swid != "" && (homeTeam.PrimaryOwner == c.swid || slices.Contains(homeTeam.Owners, c.swid)))
+		isAwayUser := (c.swid != "" && (awayTeam.PrimaryOwner == c.swid || slices.Contains(awayTeam.Owners, c.swid)))
+
+		if c.swid != "" && !isHomeUser && !isAwayUser {
+			continue
+		}
+
+		var userTeam, oppTeam ESPNTeam
+		var userScore, oppScore float64
+
+		homeScore := m.Home.GetScore(week)
+		awayScore := m.Away.GetScore(week)
+
+		if isAwayUser {
+			userTeam = awayTeam
+			userScore = awayScore
+			oppTeam = homeTeam
+			oppScore = homeScore
+		} else {
+			userTeam = homeTeam
+			userScore = homeScore
+			oppTeam = awayTeam
+			oppScore = awayScore
+		}
+
 		matchup := Matchup{
 			LeagueID:			leagueID,
 			LeagueName:			leagueName,
 			Week:				week,
-			UserOwnerID:		homeTeam.GetOwnerID(),
-			UserTeam:			homeTeam.GetTeamName(),
-			UserScore:			m.Home.TotalPoints,
-			OpponentOwnerID:	awayTeam.GetOwnerID(),
-			OpponentTeam:		awayTeam.GetTeamName(),
-			OpponentScore:		m.Away.TotalPoints,
+			UserOwnerID:		userTeam.GetOwnerID(),
+			UserTeam:			userTeam.GetTeamName(),
+			UserScore:			userScore,
+			OpponentOwnerID:	oppTeam.GetOwnerID(),
+			OpponentTeam:		oppTeam.GetTeamName(),
+			OpponentScore:		oppScore,
 		}
 
 		matchups = append(matchups, matchup)
@@ -158,7 +198,12 @@ func (c *ESPNClient) FetchNormalizedMatchups(leagueID, season string, week int) 
 		season = "2026"
 	}
 
-	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mMatchup&view=mTeam&view=mSettings&scoringPeriodID=%d", c.baseURL, season, leagueID, week)
+	url := fmt.Sprintf("%s/%s/segments/0/leagues/%s?view=mScoreboard&view=mMatchup&view=mMatchupScore&view=mTeam&view=mSettings&scoringPeriodId=%d",
+		c.baseURL,
+		season,
+		leagueID,
+		week,
+	)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -185,5 +230,5 @@ func (c *ESPNClient) FetchNormalizedMatchups(leagueID, season string, week int) 
 		return nil, fmt.Errorf("failed to decode espn data: %w", err)
 	}
 
-	return normalizeESPNData(espnData, leagueID, week), nil
+	return c.normalizeESPNData(espnData, leagueID, week), nil
 }
